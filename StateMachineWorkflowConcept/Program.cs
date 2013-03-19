@@ -1,4 +1,5 @@
-﻿using Stateless;
+﻿using System;
+using Stateless;
 
 namespace ConsoleApplication1
 {
@@ -7,33 +8,30 @@ namespace ConsoleApplication1
         static void Main(string[] args)
         {
             var workflow = RequestWorkflow.ForRequest(1);
+
+            workflow.Fire(RequestAction.Process);
+
+            var x = 0;
+
         }
     }
 
     //valid states
     public enum RequestState
     {
-        AwaitingProcessing,
-        Requested,
+        Created,
         Suspended,
-        Cancelled,
-        Processed,
-        AwaitingReview,
-        UnderReview,
-        AwaitingQuickReview,
-        UnderQuickReview,
-        AwaitingManagerApproval,
-        DeliveredAwaitingPDFGeneration,
-        Delivered,
-        AwaitingReconciliation,
-        ReconciledAwaitingPDFGeneration,
-        Reconciled,
+        Assigned,
+        Accepted,
+        InProgress,
+        Submitted,
+        InQc,
         Billed,
-        Paid
+        Cancelled
     }
 
     //valid transitions
-    public enum Action
+    public enum RequestAction
     {
         Suspend,
         Cancel,
@@ -42,25 +40,40 @@ namespace ConsoleApplication1
 
     public static class RequestWorkflow
     {
-        public static StateMachine<RequestState, Action> ForRequest(int requestId)
+        public static StateMachine<RequestState, RequestAction> ForRequest(int requestId)
         {
             //use request id to get the current state of the request and initialize
             var persistedState = GetRequestState(requestId);
 
-            var workflow = new StateMachine<RequestState, Action>(persistedState);
+            var workflow = new StateMachine<RequestState, RequestAction>(persistedState);
 
             //configure requested status
-            workflow.Configure(RequestState.Requested)
-                .Permit(Action.Suspend, RequestState.Suspended)
-                .Permit(Action.Cancel, RequestState.Cancelled)
-                .Permit(Action.Process, RequestState.Processed);
+            workflow.Configure(RequestState.Created)
+                .Permit(RequestAction.Suspend, RequestState.Suspended)
+                .Permit(RequestAction.Cancel, RequestState.Cancelled)
+                .Permit(RequestAction.Process, RequestState.Assigned);
+
+            workflow.Configure(RequestState.Assigned)
+                    .OnEntry(OnBeginHandleAssigned)
+                    .OnExit(OnExitHandleAssigned);
 
             return workflow;
         }
 
+        private static void OnBeginHandleAssigned()
+        {
+            Console.WriteLine("Assigning Request");
+        }
+
+        private static void OnExitHandleAssigned()
+        {
+            Console.WriteLine("Request Is Assigned.");
+        }
+
+        //Get current state from DB or other source
         private static RequestState GetRequestState(int requestId)
         {
-            return RequestState.Requested;
+            return RequestState.Created;
         }
     }
 }
